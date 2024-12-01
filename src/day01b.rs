@@ -4,7 +4,6 @@ use std::{
     fmt::Debug,
     fs::File,
     io::{BufRead, BufReader},
-    iter::zip,
     num::ParseIntError,
     path::Path,
 };
@@ -63,7 +62,7 @@ fn do_it(path: &str) -> Result<u32> {
         if line.is_empty() {
             Ok(None)
         } else {
-            let captures = r.captures(&line).ok_or(format!("bad line: {line}"))?;
+            let captures = r.captures(line).ok_or(format!("bad line: {line}"))?;
             let (_, [left, right]) = captures.extract();
             Ok(Some((left.to_string(), right.to_string())))
         }
@@ -72,7 +71,7 @@ fn do_it(path: &str) -> Result<u32> {
     .collect::<Result<Vec<_>>>()?
     .into_iter()
     // remove empty lines
-    .filter_map(|line| line)
+    .flatten()
     .collect::<Vec<_>>();
 
     // split
