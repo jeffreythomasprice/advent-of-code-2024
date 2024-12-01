@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     env,
     fmt::Debug,
     fs::File,
@@ -78,22 +79,32 @@ fn do_it(path: &str) -> Result<u32> {
     let (left, right): (Vec<String>, Vec<String>) = file_contents.into_iter().unzip();
 
     // parse into ints
-    let mut left = left
+    let left = left
         .into_iter()
         .map(|x| Ok(x.parse::<u32>()?))
         .collect::<Result<Vec<_>>>()?;
-    let mut right = right
+    let right = right
         .into_iter()
         .map(|x| Ok(x.parse::<u32>()?))
         .collect::<Result<Vec<_>>>()?;
 
-    // sort
-    left.sort();
-    right.sort();
+    // count how often each number in the right list appears
+    let counts = right.into_iter().fold(HashMap::new(), |mut result, x| {
+        let count = match result.get(&x) {
+            Some(existing) => existing + 1,
+            None => 1,
+        };
+        result.insert(x, count);
+        result
+    });
 
-    // join back together and calculate result
-    Ok(zip(left, right)
-        .map(|(left, right)| left.abs_diff(right))
+    // multiply each number by the count and sum
+    Ok(left
+        .into_iter()
+        .map(|x| match counts.get(&x) {
+            Some(count) => x * count,
+            None => 0,
+        })
         .sum())
 }
 
@@ -103,11 +114,11 @@ mod tests {
 
     #[test]
     pub fn test_sample() {
-        assert_eq!(do_it("day01a-sample.txt").unwrap(), 11);
+        assert_eq!(do_it("day01b-sample.txt").unwrap(), 31);
     }
 
     #[test]
     pub fn test_real() {
-        assert_eq!(do_it("day01a.txt").unwrap(), 1319616);
+        assert_eq!(do_it("day01b.txt").unwrap(), 27267728);
     }
 }
