@@ -50,6 +50,7 @@ fn do_it(path: &str) -> Result<u32> {
     let r = Regex::new(r"^(\d+)\s+(\d+)$")?;
     let file_contents = BufReader::new(File::open(
         Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
             .join("puzzle-inputs")
             .join(path),
     )?)

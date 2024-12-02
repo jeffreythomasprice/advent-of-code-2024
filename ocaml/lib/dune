@@ -1,0 +1,3 @@
+(library
+ (name lib)
+ (libraries pcre2 unix))
