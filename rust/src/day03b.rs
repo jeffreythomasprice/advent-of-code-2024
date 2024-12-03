@@ -65,15 +65,26 @@ fn do_it(path: &str) -> Result<u32> {
     .collect::<Result<Vec<_>>>()?;
 
     let file_contents = file_contents.join("");
-    let r = Regex::new(r"mul\(([0-9]{1,3}),([0-9]{1,3})\)")?;
-    Ok(r.captures_iter(&file_contents)
-        .filter_map(|x| {
-            let (_, [left, right]) = x.extract();
-            let left = left.parse::<u32>().ok()?;
-            let right = right.parse::<u32>().ok()?;
-            Some(left * right)
-        })
-        .sum())
+    let r = Regex::new(r"^mul\(([0-9]{1,3}),([0-9]{1,3})\)")?;
+    let mut enabled = true;
+    let mut sum = 0;
+    for i in 0..file_contents.len() {
+        if file_contents[i..].starts_with("do()") {
+            enabled = true;
+        } else if file_contents[i..].starts_with("don't()") {
+            enabled = false;
+        } else if enabled {
+            if let Some(captures) = r.captures(&file_contents[i..]) {
+                let (_, [left, right]) = captures.extract();
+                if let Ok(left) = left.parse::<u32>() {
+                    if let Ok(right) = right.parse::<u32>() {
+                        sum += left * right;
+                    }
+                }
+            }
+        }
+    }
+    Ok(sum)
 }
 
 #[cfg(test)]
@@ -82,11 +93,11 @@ mod tests {
 
     #[test]
     pub fn test_sample() {
-        assert_eq!(do_it("day03a-sample.txt").unwrap(), 161);
+        assert_eq!(do_it("day03b-sample.txt").unwrap(), 48);
     }
 
     #[test]
     pub fn test_real() {
-        assert_eq!(do_it("day03.txt").unwrap(), 192767529);
+        assert_eq!(do_it("day03.txt").unwrap(), 104083373);
     }
 }
