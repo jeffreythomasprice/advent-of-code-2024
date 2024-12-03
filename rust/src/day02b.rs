@@ -44,6 +44,61 @@ impl From<ParseIntError> for Error {
     }
 }
 
+fn is_good(line: &[i32]) -> bool {
+    /*
+    rules:
+    - all increasing or all decreasing
+    - no delta outside the range [1, 3]
+    */
+
+    let mut increasing = 0;
+    let mut decreasing = 0;
+    let mut all_in_range = true;
+    for i in 0..(line.len() - 1) {
+        let a = line[i];
+        let b = line[i + 1];
+        let delta = b - a;
+
+        // find out what direction we're going
+        if delta > 0 {
+            increasing += 1;
+        } else if delta < 0 {
+            decreasing += 1;
+        }
+
+        // find out if we're in range
+        let delta = delta.abs();
+        if delta < 1 || delta > 3 {
+            all_in_range = false;
+        }
+    }
+
+    if increasing > 0 && decreasing > 0 {
+        false
+    } else if !all_in_range {
+        false
+    } else {
+        true
+    }
+}
+
+fn duplicate_without_index<T>(source: &[T], to_remove: usize) -> Vec<T>
+where
+    T: Clone,
+{
+    source
+        .iter()
+        .enumerate()
+        .filter_map(|(i, x)| {
+            if i != to_remove {
+                Some(x.clone())
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
 #[allow(dead_code)]
 fn do_it(path: &str) -> Result<u32> {
     let r = Regex::new(r"\s+")?;
@@ -79,29 +134,16 @@ fn do_it(path: &str) -> Result<u32> {
     Ok(file_contents
         .into_iter()
         .filter(|line| {
-            let mut increasing = 0;
-            let mut decreasing = 0;
-            let mut all_in_range = true;
-            for i in 0..(line.len() - 1) {
-                let a = line[i];
-                let b = line[i + 1];
-                let delta = b - a;
-                if delta > 0 {
-                    increasing += 1;
-                } else if delta < 0 {
-                    decreasing += 1;
-                }
-                let delta = delta.abs();
-                if delta < 1 || delta > 3 {
-                    all_in_range = false;
-                }
-            }
-            if increasing > 0 && decreasing > 0 {
-                false
-            } else if !all_in_range {
-                false
-            } else {
+            if is_good(&line) {
                 true
+            } else {
+                for i in 0..line.len() {
+                    let new_line = duplicate_without_index(line, i);
+                    if is_good(&new_line) {
+                        return true;
+                    }
+                }
+                false
             }
         })
         .count() as u32)
@@ -113,11 +155,11 @@ mod tests {
 
     #[test]
     pub fn test_sample() {
-        assert_eq!(do_it("day02-sample.txt").unwrap(), 2);
+        assert_eq!(do_it("day02-sample.txt").unwrap(), 4);
     }
 
     #[test]
     pub fn test_real() {
-        assert_eq!(do_it("day02.txt").unwrap(), 572);
+        assert_eq!(do_it("day02.txt").unwrap(), 612);
     }
 }

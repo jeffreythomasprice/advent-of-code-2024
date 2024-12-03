@@ -114,11 +114,11 @@ mod tests {
 
     #[test]
     pub fn test_sample() {
-        assert_eq!(do_it("day01b-sample.txt").unwrap(), 31);
+        assert_eq!(do_it("day01-sample.txt").unwrap(), 31);
     }
 
     #[test]
     pub fn test_real() {
-        assert_eq!(do_it("day01b.txt").unwrap(), 27267728);
+        assert_eq!(do_it("day01.txt").unwrap(), 27267728);
     }
 }
