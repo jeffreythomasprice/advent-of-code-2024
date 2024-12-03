@@ -46,7 +46,6 @@ impl From<ParseIntError> for Error {
 
 #[allow(dead_code)]
 fn do_it(path: &str) -> Result<u32> {
-    let r = Regex::new(r"\s+")?;
     let file_contents = BufReader::new(File::open(
         Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("..")
