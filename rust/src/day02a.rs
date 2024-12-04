@@ -92,17 +92,13 @@ fn do_it(path: &str) -> Result<u32> {
                     decreasing += 1;
                 }
                 let delta = delta.abs();
-                if delta < 1 || delta > 3 {
+                if !(1..=3).contains(&delta) {
                     all_in_range = false;
                 }
             }
             if increasing > 0 && decreasing > 0 {
                 false
-            } else if !all_in_range {
-                false
-            } else {
-                true
-            }
+            } else { !(!all_in_range) }
         })
         .count() as u32)
 }

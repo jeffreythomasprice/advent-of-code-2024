@@ -68,18 +68,14 @@ fn is_good(line: &[i32]) -> bool {
 
         // find out if we're in range
         let delta = delta.abs();
-        if delta < 1 || delta > 3 {
+        if !(1..=3).contains(&delta) {
             all_in_range = false;
         }
     }
 
     if increasing > 0 && decreasing > 0 {
         false
-    } else if !all_in_range {
-        false
-    } else {
-        true
-    }
+    } else { !(!all_in_range) }
 }
 
 fn duplicate_without_index<T>(source: &[T], to_remove: usize) -> Vec<T>
@@ -134,7 +130,7 @@ fn do_it(path: &str) -> Result<u32> {
     Ok(file_contents
         .into_iter()
         .filter(|line| {
-            if is_good(&line) {
+            if is_good(line) {
                 true
             } else {
                 for i in 0..line.len() {

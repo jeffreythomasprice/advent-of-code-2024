@@ -9,7 +9,6 @@ use std::{
     path::Path,
 };
 
-use regex::Regex;
 
 #[derive(Debug, Clone)]
 struct Error(#[allow(dead_code)] String);
@@ -113,7 +112,7 @@ impl Grid {
     }
 
     fn is_word(&self, starting_point: &Point, direction: &Point, word: &str) -> bool {
-        let actual_data = word.chars().into_iter().enumerate().map(|(i, c)| {
+        let actual_data = word.chars().enumerate().map(|(i, c)| {
             let point = *starting_point + *direction * (i as i32);
             self.get_at(&point)
         });
@@ -163,7 +162,7 @@ fn do_it(path: &str) -> Result<u32> {
                         x: x as i32,
                         y: y as i32,
                     },
-                    &dir,
+                    dir,
                     "XMAS",
                 ) {
                     count += 1;
