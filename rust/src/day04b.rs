@@ -5,7 +5,7 @@ use std::{
     fs::File,
     io::{BufRead, BufReader},
     num::ParseIntError,
-    ops::{Add, Mul},
+    ops::{Add, Mul, Sub},
     path::Path,
 };
 
@@ -61,6 +61,17 @@ impl Add<Point> for Point {
     }
 }
 
+impl Sub<Point> for Point {
+    type Output = Point;
+
+    fn sub(self, rhs: Point) -> Self::Output {
+        Self::Output {
+            x: self.x - rhs.x,
+            y: self.y - rhs.y,
+        }
+    }
+}
+
 impl Mul<i32> for Point {
     type Output = Point;
 
@@ -110,13 +121,28 @@ impl Grid {
         }
     }
 
-    fn is_word(&self, starting_point: &Point, direction: &Point, word: &str) -> bool {
+    fn is_word(&self, starting_point: Point, direction: Point, word: &str) -> bool {
         let actual_data = word.chars().enumerate().map(|(i, c)| {
-            let point = *starting_point + *direction * (i as i32);
+            let point = starting_point + direction * (i as i32);
             self.get_at(&point)
         });
         let actual_data = actual_data.collect::<Option<Vec<_>>>();
         actual_data == Some(word.chars().collect::<Vec<_>>())
+    }
+
+    fn is_cross(&self, starting_point: Point, direction: Point) -> bool {
+        let midpoint = starting_point + direction;
+        let alt_direction1 = Point {
+            x: -direction.y,
+            y: direction.x,
+        };
+        let alt_direction2 = Point {
+            x: direction.y,
+            y: -direction.x,
+        };
+        self.is_word(starting_point, direction, "MAS")
+            && (self.is_word(midpoint - alt_direction1, alt_direction1, "MAS")
+                || self.is_word(midpoint - alt_direction2, alt_direction2, "MAS"))
     }
 }
 
@@ -142,10 +168,6 @@ fn do_it(path: &str) -> Result<u32> {
     let grid = Grid::new(file_contents)?;
 
     let directions = [
-        Point { x: 1, y: 0 },
-        Point { x: -1, y: 0 },
-        Point { x: 0, y: 1 },
-        Point { x: 0, y: -1 },
         Point { x: 1, y: 1 },
         Point { x: 1, y: -1 },
         Point { x: -1, y: 1 },
@@ -156,20 +178,19 @@ fn do_it(path: &str) -> Result<u32> {
     for y in 0..grid.height {
         for x in 0..grid.width {
             for dir in &directions {
-                if grid.is_word(
-                    &Point {
+                if grid.is_cross(
+                    Point {
                         x: x as i32,
                         y: y as i32,
                     },
-                    dir,
-                    "XMAS",
+                    *dir,
                 ) {
                     count += 1;
                 }
             }
         }
     }
-    Ok(count)
+    Ok(count / 2)
 }
 
 #[cfg(test)]
@@ -178,16 +199,16 @@ mod tests {
 
     #[test]
     pub fn test_sample1() {
-        assert_eq!(do_it("day04a-sample1.txt").unwrap(), 4);
+        assert_eq!(do_it("day04b-sample1.txt").unwrap(), 1);
     }
 
     #[test]
     pub fn test_sample2() {
-        assert_eq!(do_it("day04a-sample2.txt").unwrap(), 18);
+        assert_eq!(do_it("day04b-sample2.txt").unwrap(), 9);
     }
 
     #[test]
     pub fn test_real() {
-        assert_eq!(do_it("day04.txt").unwrap(), 2543);
+        assert_eq!(do_it("day04.txt").unwrap(), 1930);
     }
 }
