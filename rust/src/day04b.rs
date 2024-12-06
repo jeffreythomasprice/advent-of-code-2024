@@ -122,7 +122,7 @@ impl Grid {
     }
 
     fn is_word(&self, starting_point: Point, direction: Point, word: &str) -> bool {
-        let actual_data = word.chars().enumerate().map(|(i, c)| {
+        let actual_data = word.chars().enumerate().map(|(i, _)| {
             let point = starting_point + direction * (i as i32);
             self.get_at(&point)
         });
