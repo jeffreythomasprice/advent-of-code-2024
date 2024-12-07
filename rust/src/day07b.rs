@@ -49,14 +49,15 @@ struct Line {
     values: Vec<u64>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 enum Operator {
     Add,
     Multiply,
+    Concat,
 }
 
 struct Operators {
-    operators: u64,
+    operators: Vec<Operator>,
 }
 
 impl Line {
@@ -83,8 +84,8 @@ impl Line {
 
     fn is_solvable(&self) -> Result<bool> {
         let mut operators = Operators::new(self)?;
-        for _ in 0..2u32.pow((self.values.len() - 1) as u32) {
-            if self.is_solution(&operators) {
+        for _ in 0..3u32.pow((self.values.len() - 1) as u32) {
+            if self.is_solution(&operators)? {
                 return Ok(true);
             }
             operators.next();
@@ -92,7 +93,7 @@ impl Line {
         Ok(false)
     }
 
-    fn is_solution(&self, operators: &Operators) -> bool {
+    fn is_solution(&self, operators: &Operators) -> Result<bool> {
         let mut result = self.values[0];
         for i in 1..self.values.len() {
             let left = result;
@@ -100,12 +101,17 @@ impl Line {
             result = match operators[i - 1] {
                 Operator::Add => left + right,
                 Operator::Multiply => left * right,
+                Operator::Concat => {
+                    let left = left.to_string();
+                    let right = right.to_string();
+                    (left + &right).parse()?
+                }
             };
             if result > self.answer {
-                return false;
+                return Ok(false);
             }
         }
-        result == self.answer
+        Ok(result == self.answer)
     }
 }
 
@@ -116,15 +122,23 @@ impl Operators {
         }
 
         let len = line.values.len() - 1;
-        if len > 64 {
-            Err(format!("too many values, line len = {}", line.values.len()))?;
-        }
-
-        Ok(Self { operators: 0 })
+        Ok(Self {
+            operators: (0..len).map(|_| Operator::Add).collect(),
+        })
     }
 
     fn next(&mut self) {
-        self.operators += 1;
+        for i in 0..self.operators.len() {
+            let next = match self.operators[i] {
+                Operator::Add => Operator::Multiply,
+                Operator::Multiply => Operator::Concat,
+                Operator::Concat => Operator::Add,
+            };
+            self.operators[i] = next;
+            if next != Operator::Add {
+                break;
+            }
+        }
     }
 }
 
@@ -132,11 +146,7 @@ impl Index<usize> for Operators {
     type Output = Operator;
 
     fn index(&self, index: usize) -> &Self::Output {
-        if self.operators & (1 << index) == 0 {
-            &Operator::Add
-        } else {
-            &Operator::Multiply
-        }
+        &self.operators[index]
     }
 }
 
@@ -178,11 +188,11 @@ mod tests {
 
     #[test]
     pub fn test_sample() {
-        assert_eq!(do_it("day07-sample.txt").unwrap(), 3749);
+        assert_eq!(do_it("day07-sample.txt").unwrap(), 11387);
     }
 
     #[test]
     pub fn test_real() {
-        assert_eq!(do_it("day07.txt").unwrap(), 1620690235709);
+        assert_eq!(do_it("day07.txt").unwrap(), 145397611075341);
     }
 }
