@@ -1,5 +1,3 @@
-// TODO this was a slow brute force solution
-
 use std::{
     collections::HashMap,
     env,
@@ -47,7 +45,7 @@ impl From<ParseIntError> for Error {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct Rule {
     left: u32,
     right: u32,
@@ -63,28 +61,79 @@ impl Rule {
 }
 
 #[derive(Debug)]
-struct Rules(HashMap<u32, Vec<Rule>>);
+struct Rules {
+    rules: Vec<Rule>,
+    map: HashMap<u32, Vec<Rule>>,
+    grid: Vec<Vec<bool>>,
+}
 
 impl Rules {
     fn new(rules: Vec<Rule>) -> Self {
-        Self({
+        let map = {
             let mut result = HashMap::new();
-            for rule in rules.into_iter() {
-                result.entry(rule.left).or_insert_with(Vec::new).push(rule);
+            for rule in rules.iter() {
+                result
+                    .entry(rule.left)
+                    .or_insert_with(Vec::new)
+                    .push(rule.clone());
             }
             result
-        })
+        };
+
+        let max_num = rules
+            .iter()
+            .map(|rule| rule.left.max(rule.right))
+            .max()
+            .unwrap_or(0) as usize
+            + 1;
+        let mut grid = Vec::with_capacity(max_num);
+        for left in 0..max_num {
+            let mut row = Vec::with_capacity(max_num);
+            for right in 0..max_num {
+                row.push(rules.contains(&Rule {
+                    left: left as u32,
+                    right: right as u32,
+                }));
+            }
+            grid.push(row);
+        }
+
+        Self { rules, map, grid }
+    }
+
+    fn new_with_restricted_numbers(other: &Rules, numbers: &[u32]) -> Self {
+        Self::new(
+            other
+                .rules
+                .iter()
+                .filter_map(|rule| {
+                    if numbers.contains(&rule.left) && numbers.contains(&rule.right) {
+                        Some(rule.clone())
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>(),
+        )
     }
 
     fn check(&self, left: u32, right: u32) -> bool {
-        match self.0.get(&left) {
-            Some(rules) => rules.iter().any(|rule| rule.right == right),
-            None => false,
+        let left = left as usize;
+        if left < self.grid.len() {
+            let row = &self.grid[left];
+            let right = right as usize;
+            if right < row.len() {
+                row[right]
+            } else {
+                false
+            }
+        } else {
+            false
         }
     }
 
     fn possible_choices(&self, left: u32) -> Option<&Vec<Rule>> {
-        match self.0.get(&left) {
+        match self.map.get(&left) {
             Some(rules) => Some(rules),
             None => None,
         }
@@ -112,8 +161,13 @@ impl Sequence {
     }
 
     fn new_with_numbers(numbers: &[u32], rules: &Rules) -> Option<Sequence> {
+        let rules = Rules::new_with_restricted_numbers(rules, numbers);
+
         let mut to_visit = numbers.iter().map(|x| (None, *x)).collect::<Vec<_>>();
         let mut current = Vec::new();
+        let mut current_seq = Sequence::new(Vec::new());
+        let mut visited = (0..rules.grid.len()).map(|_| false).collect::<Vec<_>>();
+
         loop {
             match to_visit.pop() {
                 // we have something to try
@@ -126,6 +180,9 @@ impl Sequence {
                                 Some((_, current_head)) => {
                                     if *current_head != prev {
                                         current.pop();
+                                        if let Some(number) = current_seq.0.pop() {
+                                            visited[number as usize] = false;
+                                        }
                                     } else {
                                         break;
                                     }
@@ -134,23 +191,32 @@ impl Sequence {
                             };
                         },
                         // we didn't have a previous node, that means we're starting a new root attempt, so clear the current one
-                        None => current.clear(),
+                        None => {
+                            current.clear();
+                            current_seq.0.clear();
+                            for number in numbers.iter() {
+                                visited[*number as usize] = false;
+                            }
+                        }
                     };
 
                     // add it to our possible solution
                     current.push((prev, next));
-                    let possible_result =
-                        Sequence::new(current.iter().map(|(_, x)| *x).collect::<Vec<_>>());
+                    current_seq.0.push(next);
+                    visited[next as usize] = true;
 
                     // no more things to add
-                    if possible_result.0.len() == numbers.len() {
+                    if current.len() == numbers.len() {
                         // success, we're done
-                        if possible_result.is_valid(rules) {
-                            return Some(possible_result);
+                        if current_seq.is_valid(&rules) {
+                            return Some(current_seq);
                         }
                         // not a solution
                         else {
                             current.pop();
+                            if let Some(number) = current_seq.0.pop() {
+                                visited[number as usize] = false;
+                            }
                             continue;
                         }
                     }
@@ -158,12 +224,10 @@ impl Sequence {
                     // there must be at least one more number in this sequence before we can check if we're done
                     // add all possible remaining choices
                     if let Some(possible_choices) = rules.possible_choices(next) {
-                        for next in possible_choices.iter().filter(|next| {
-                            let is_valid_number = numbers.contains(&next.right);
-                            let not_already_visited =
-                                !current.iter().any(|(_, x)| *x == next.right);
-                            is_valid_number && not_already_visited
-                        }) {
+                        for next in possible_choices
+                            .iter()
+                            .filter(|next| !visited[next.right as usize])
+                        {
                             to_visit.push((Some(next.left), next.right));
                         }
                     }
