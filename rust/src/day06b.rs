@@ -44,7 +44,7 @@ impl From<ParseIntError> for Error {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct Point {
     x: i32,
     y: i32,
@@ -61,7 +61,7 @@ impl Add for Point {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 enum Direction {
     Up,
     Down,
@@ -89,11 +89,13 @@ impl Direction {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct Guard {
     position: Point,
     direction: Direction,
 }
 
+#[derive(Clone)]
 struct State {
     width: usize,
     height: usize,
@@ -201,6 +203,12 @@ impl State {
         }
     }
 
+    fn add_obstacle(&mut self, p: Point) {
+        if self.contains_point(p) {
+            self.data[(p.y as usize) * self.width + (p.x as usize)] = true;
+        }
+    }
+
     fn guard_is_still_in_bounds(&self) -> bool {
         self.contains_point(self.guard.position)
     }
@@ -219,6 +227,24 @@ impl State {
             self.guard.position = next_point;
             self.visit(next_point);
         }
+    }
+
+    // bool is true if the path is a loop
+    fn find_path(&self) -> (bool, Vec<Guard>) {
+        let mut state = self.clone();
+        let mut path = Vec::new();
+        let mut path_set = HashSet::new();
+        path.push(state.guard.clone());
+        path_set.insert(state.guard.clone());
+        while state.guard_is_still_in_bounds() {
+            state.advance();
+            if path_set.contains(&state.guard) {
+                return (true, path);
+            }
+            path.push(state.guard.clone());
+            path_set.insert(state.guard.clone());
+        }
+        (false, path)
     }
 }
 
@@ -268,13 +294,26 @@ fn do_it(path: &str) -> Result<usize> {
     // break if we have an error
     .collect::<Result<Vec<_>>>()?;
 
-    let mut state = State::new(&file_contents)?;
+    let state = State::new(&file_contents)?;
 
-    while state.guard_is_still_in_bounds() {
-        state.advance();
-    }
+    let (_, path) = state.find_path();
 
-    Ok(state.visited.iter().filter(|x| **x).count())
+    Ok(HashSet::<Point>::from_iter(
+        path.iter()
+            .map(|previous_guard| previous_guard.position + previous_guard.direction.to_vector()),
+    )
+    .iter()
+    .filter_map(|obstacle| {
+        let mut state = state.clone();
+        state.add_obstacle(*obstacle);
+        let (is_infinite, _) = state.find_path();
+        if is_infinite {
+            Some(obstacle)
+        } else {
+            None
+        }
+    })
+    .count())
 }
 
 #[cfg(test)]
@@ -283,11 +322,11 @@ mod tests {
 
     #[test]
     pub fn test_sample() {
-        assert_eq!(do_it("day06-sample.txt").unwrap(), 41);
+        assert_eq!(do_it("day06-sample.txt").unwrap(), 6);
     }
 
     #[test]
     pub fn test_real() {
-        assert_eq!(do_it("day06.txt").unwrap(), 5208);
+        assert_eq!(do_it("day06.txt").unwrap(), 1972);
     }
 }

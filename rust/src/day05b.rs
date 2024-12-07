@@ -1,4 +1,4 @@
-// TODO redo this, current solution is brute force and takes several minutes
+// TODO this was a slow brute force solution
 
 use std::{
     collections::HashMap,
