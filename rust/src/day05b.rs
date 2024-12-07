@@ -1,5 +1,4 @@
 use std::{
-    collections::HashMap,
     env,
     fmt::Debug,
     fs::File,
@@ -63,29 +62,24 @@ impl Rule {
 #[derive(Debug)]
 struct Rules {
     rules: Vec<Rule>,
-    map: HashMap<u32, Vec<Rule>>,
+    rules_by_number: Vec<Vec<Rule>>,
     grid: Vec<Vec<bool>>,
 }
 
 impl Rules {
     fn new(rules: Vec<Rule>) -> Self {
-        let map = {
-            let mut result = HashMap::new();
-            for rule in rules.iter() {
-                result
-                    .entry(rule.left)
-                    .or_insert_with(Vec::new)
-                    .push(rule.clone());
-            }
-            result
-        };
-
         let max_num = rules
             .iter()
             .map(|rule| rule.left.max(rule.right))
             .max()
             .unwrap_or(0) as usize
             + 1;
+
+        let mut rules_by_number = (0..max_num).map(|_| Vec::new()).collect::<Vec<_>>();
+        for rule in rules.iter() {
+            rules_by_number[rule.left as usize].push(rule.clone());
+        }
+
         let mut grid = Vec::with_capacity(max_num);
         for left in 0..max_num {
             let mut row = Vec::with_capacity(max_num);
@@ -98,7 +92,11 @@ impl Rules {
             grid.push(row);
         }
 
-        Self { rules, map, grid }
+        Self {
+            rules,
+            rules_by_number,
+            grid,
+        }
     }
 
     fn new_with_restricted_numbers(other: &Rules, numbers: &[u32]) -> Self {
@@ -133,9 +131,10 @@ impl Rules {
     }
 
     fn possible_choices(&self, left: u32) -> Option<&Vec<Rule>> {
-        match self.map.get(&left) {
-            Some(rules) => Some(rules),
-            None => None,
+        if (left as usize) < self.rules_by_number.len() {
+            Some(&self.rules_by_number[left as usize])
+        } else {
+            None
         }
     }
 }
