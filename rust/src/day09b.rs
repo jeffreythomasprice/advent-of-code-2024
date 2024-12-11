@@ -1,11 +1,9 @@
 use std::{
-    collections::{HashMap, HashSet},
     env,
     fmt::Debug,
     fs::File,
     io::{BufRead, BufReader},
     num::ParseIntError,
-    ops::{Add, Sub},
     path::Path,
 };
 
@@ -129,8 +127,7 @@ fn do_it(path: &str) -> Result<u64> {
 
     Ok(files
         .iter()
-        .map(|f| (f.position..(f.position + f.len)).map(|i| i * f.index))
-        .flatten()
+        .flat_map(|f| (f.position..(f.position + f.len)).map(|i| i * f.index))
         .sum())
 }
 

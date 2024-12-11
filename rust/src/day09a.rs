@@ -1,11 +1,9 @@
 use std::{
-    collections::{HashMap, HashSet},
     env,
     fmt::Debug,
     fs::File,
     io::{BufRead, BufReader},
     num::ParseIntError,
-    ops::{Add, Sub},
     path::Path,
 };
 
@@ -51,12 +49,6 @@ struct PuzzleFile {
     len: u64,
 }
 
-#[derive(Debug)]
-struct Gap {
-    position: u64,
-    len: u64,
-}
-
 #[allow(dead_code)]
 fn do_it(path: &str) -> Result<u64> {
     let file_contents = BufReader::new(File::open(
@@ -90,13 +82,8 @@ fn do_it(path: &str) -> Result<u64> {
     });
     let mut next_index = 1;
     let mut next_position = files[0].len;
-    let mut gaps = Vec::new();
     for i in (1..input.len()).step_by(2) {
         let gap = input[i].to_string().parse::<u64>()?;
-        gaps.push(Gap {
-            position: next_position,
-            len: gap,
-        });
         next_position += gap;
 
         let size = input[i + 1].to_string().parse::<u64>()?;
@@ -135,7 +122,7 @@ fn do_it(path: &str) -> Result<u64> {
         .iter()
         .take_while(|block| block.is_some())
         .enumerate()
-        .map(|(i, block)| (i as u64) * (block.unwrap_or(0) as u64))
+        .map(|(i, block)| (i as u64) * block.unwrap_or(0))
         .sum())
 }
 
