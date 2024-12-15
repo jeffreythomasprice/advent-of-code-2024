@@ -299,7 +299,6 @@ fn do_it(path: &str, width: usize, height: usize) -> Result<u64> {
         });
 
         if state == original {
-            println!("TODO breaking because we've looped");
             break;
         }
     }
