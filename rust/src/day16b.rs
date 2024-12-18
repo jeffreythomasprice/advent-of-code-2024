@@ -169,7 +169,10 @@ impl GraphNode {
 #[derive(Debug, Clone)]
 enum PathElement {
     Start,
-    Element { distance: u64 },
+    Element {
+        distance: u64,
+        previous: Vec<GraphNode>,
+    },
 }
 
 impl State {
@@ -227,7 +230,7 @@ impl State {
         }
     }
 
-    fn find_shortest_path(&self) -> Result<u64> {
+    fn count_all_tiles_on_shortest_path(&self) -> Result<u64> {
         /*
         dijkstra
         vertices are position + direction
@@ -269,8 +272,7 @@ impl State {
             }
         }
 
-        let mut goal_node = None;
-        while !queue.is_empty() && goal_node.is_none() {
+        while !queue.is_empty() {
             // find the next element
             // sort in decreasing distance
             let (next_i, next) = queue
@@ -309,40 +311,99 @@ impl State {
 
                     let proposed_distance_to_neighbor = current_distance_to_next + delta;
 
-                    let replace =
-                        if let Some(current_distance_to_neighbor) = current_distance_to_neighbor {
-                            if proposed_distance_to_neighbor < current_distance_to_neighbor {
-                                // new distance is shorter
-                                true
-                            } else {
-                                // existing distance is shorter
-                                false
-                            }
+                    if let Some(current_distance_to_neighbor) = current_distance_to_neighbor {
+                        if proposed_distance_to_neighbor < current_distance_to_neighbor {
+                            // new distance is shorter, so this must be a better path
+                            graph[self.graph_node_index(&neighbor)] = Some(PathElement::Element {
+                                distance: proposed_distance_to_neighbor,
+                                previous: vec![next],
+                            });
+                        } else if proposed_distance_to_neighbor == current_distance_to_neighbor {
+                            // this is another route we could take to get here
+                            match &mut graph[self.graph_node_index(&neighbor)] {
+                                Some(PathElement::Element { distance: _, previous }) => {
+                                    previous.push(next);
+                                },
+                                Some(PathElement::Start) => Err("found start element when expected a list of at least one previous element")?,
+                                None => Err("found no path element when expected a list of at least one previous element")?,
+                            };
                         } else {
-                            // no existing distance to neighbor, this must be the better path
-                            true
-                        };
-                    if replace {
+                            // existing distance is shorter, nothing to do
+                        }
+                    } else {
+                        // no existing distance to neighbor, this must be the better path
                         graph[self.graph_node_index(&neighbor)] = Some(PathElement::Element {
                             distance: proposed_distance_to_neighbor,
+                            previous: vec![next],
                         });
-
-                        if neighbor.position == self.goal {
-                            goal_node = Some(neighbor);
-                        }
-                    }
+                    };
                 }
-            });
+                Ok(())
+            })?;
         }
 
-        if let Some(goal_node) = goal_node {
-            match &graph[self.graph_node_index(&goal_node)] {
-                Some(PathElement::Element { distance }) => Ok(*distance),
-                _ => Err("thought we found the goal node, but no distance found for it")?,
-            }
-        } else {
-            Err("exited, but didn't find a path to the goal")?
+        // start with all possible ways we could have reached the goal node
+        let possible_goal_nodes = [
+            GraphNode {
+                position: self.goal,
+                direction: Direction::Left,
+            },
+            GraphNode {
+                position: self.goal,
+                direction: Direction::Right,
+            },
+            GraphNode {
+                position: self.goal,
+                direction: Direction::Up,
+            },
+            GraphNode {
+                position: self.goal,
+                direction: Direction::Down,
+            },
+        ]
+        .iter()
+        .map(|node| {
+            let distance = self
+                .effective_distance(&graph[self.graph_node_index(node)])
+                .unwrap_or(0);
+            (*node, distance)
+        })
+        .collect::<Vec<_>>();
+        let min_distance = possible_goal_nodes
+            .iter()
+            .map(|(_, d)| d)
+            .min()
+            .ok_or("expected a way to reach to goal but found none")?;
+        let mut queue = Vec::new();
+        for possible_goal_nodes in
+            possible_goal_nodes
+                .iter()
+                .filter_map(|(node, d)| if d == min_distance { Some(node) } else { None })
+        {
+            queue.push(*possible_goal_nodes);
         }
+        // collect all unique points along the way back to the start
+        let mut results = HashSet::new();
+        // we can definitely reach the start
+        results.insert(self.start);
+        while let Some(node) = queue.pop() {
+            // we can reach this node
+            results.insert(node.position);
+            match &graph[self.graph_node_index(&node)] {
+                // this was some reachable node, continue on all paths that led us here
+                Some(PathElement::Element {
+                    distance: _,
+                    previous,
+                }) => {
+                    queue.extend_from_slice(&previous);
+                }
+                // we're at the start, nothing to add
+                Some(PathElement::Start) => (),
+                // this wasn't a reachable node, ignore it
+                None => (),
+            };
+        }
+        Ok(results.len() as u64)
     }
 
     fn graph_node_index(&self, x: &GraphNode) -> usize {
@@ -352,14 +413,17 @@ impl State {
     fn effective_distance(&self, x: &Option<PathElement>) -> Option<u64> {
         // effective distance is 0 for Some(Start), and infinity for None
         x.as_ref().map(|x| match x {
-            &PathElement::Element { distance } => distance,
+            &PathElement::Element {
+                distance,
+                previous: _,
+            } => distance,
             PathElement::Start => 0,
         })
     }
 
-    fn neighbors<F>(&self, x: &GraphNode, mut f: F)
+    fn neighbors<F>(&self, x: &GraphNode, mut f: F) -> Result<()>
     where
-        F: FnMut(GraphNode, u64),
+        F: FnMut(GraphNode, u64) -> Result<()>,
     {
         let forward = x.position + x.direction.to_vector();
         if self.get(forward) == Cell::Empty {
@@ -369,7 +433,7 @@ impl State {
                     direction: x.direction,
                 },
                 1,
-            );
+            )?;
         }
         f(
             GraphNode {
@@ -377,14 +441,15 @@ impl State {
                 direction: x.direction.left(),
             },
             1000,
-        );
+        )?;
         f(
             GraphNode {
                 position: x.position,
                 direction: x.direction.right(),
             },
             1000,
-        );
+        )?;
+        Ok(())
     }
 }
 
@@ -407,7 +472,7 @@ fn do_it(path: &str) -> Result<u64> {
     .collect::<Result<Vec<_>>>()?;
 
     let state = State::new(file_contents)?;
-    Ok(state.find_shortest_path()?)
+    Ok(state.count_all_tiles_on_shortest_path()?)
 }
 
 #[cfg(test)]
@@ -416,16 +481,16 @@ mod tests {
 
     #[test]
     pub fn test_sample1() {
-        assert_eq!(do_it("day16-sample1.txt").unwrap(), 7036);
+        assert_eq!(do_it("day16-sample1.txt").unwrap(), 45);
     }
 
     #[test]
     pub fn test_sample2() {
-        assert_eq!(do_it("day16-sample2.txt").unwrap(), 11048);
+        assert_eq!(do_it("day16-sample2.txt").unwrap(), 64);
     }
 
     #[test]
     pub fn test_real() {
-        assert_eq!(do_it("day16.txt",).unwrap(), 75416);
+        assert_eq!(do_it("day16.txt",).unwrap(), 476);
     }
 }
