@@ -278,14 +278,17 @@ fn do_it(path: &str) -> Result<u64> {
             if !vm.step(|out| {
                 output.push(out);
                 // println!("TODO new output: {:?}", output);
-                goal[output.len() - 1] == out
+                // TODO put early exit back
+                // goal[output.len() - 1] == out
+                true
             })? {
                 // println!("TODO aborting, output so far: {:?}", output);
                 break;
             }
         }
-        // println!("TODO goal: {:?}", goal);
-        // println!("TODO output: {:?}", output);
+        println!("TODO a: {}", a);
+        println!("TODO goal: {:?}", goal);
+        println!("TODO output: {:?}", output);
         if output == goal {
             return Ok(a);
         } else {
