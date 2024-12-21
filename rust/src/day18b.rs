@@ -144,7 +144,7 @@ impl Grid {
         Ok(result)
     }
 
-    fn shorted_path(&self, start: Point, goal: Point) -> Result<u64> {
+    fn shortest_path(&self, start: Point, goal: Point) -> Result<u64> {
         /*
         dijkstra
         vertices are position + direction
@@ -314,7 +314,7 @@ fn do_it(path: &str, width: usize, height: usize) -> Result<String> {
     loop {
         let grid = Grid::new(width, height, &file_contents[0..(count + 1)])?;
 
-        let result = grid.shorted_path(
+        let result = grid.shortest_path(
             Point { x: 0, y: 0 },
             Point {
                 x: (width as i64) - 1,

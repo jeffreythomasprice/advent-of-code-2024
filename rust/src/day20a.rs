@@ -1,5 +1,6 @@
 use std::{
     cmp::Ordering,
+    collections::{ HashSet},
     env,
     fmt::Debug,
     fs::File,
@@ -9,8 +10,6 @@ use std::{
     path::Path,
     str::Utf8Error,
 };
-
-use regex::Regex;
 
 #[derive(Debug, Clone)]
 struct Error(#[allow(dead_code)] String);
@@ -93,7 +92,7 @@ impl SubAssign<Point> for Point {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Direction {
     Left,
     Right,
@@ -112,39 +111,77 @@ impl Direction {
     }
 }
 
-struct Grid {
-    width: usize,
-    height: usize,
-    data: Vec<bool>,
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Cell {
+    Empty,
+    Wall,
 }
 
 #[derive(Debug, Clone)]
 enum PathElement {
-    Start,
+    Goal,
     Element { distance: u64 },
 }
 
+#[derive(Clone)]
+struct Grid {
+    width: usize,
+    height: usize,
+    data: Vec<Cell>,
+    goal: Point,
+}
+
 impl Grid {
-    fn new(width: usize, height: usize, lines: &[String]) -> Result<Grid> {
-        let mut result = Self {
-            width,
-            height,
-            data: (0..(width * height)).map(|_| false).collect::<Vec<_>>(),
-        };
-        let r = Regex::new(r"^([0-9]+),([0-9]+)$")?;
-        for line in lines {
-            let (_, [x, y]) = r
-                .captures(line)
-                .ok_or(format!("regex failed: {line}"))?
-                .extract();
-            let x: usize = x.parse()?;
-            let y: usize = y.parse()?;
-            result.data[y * width + x] = true;
+    fn new(lines: &[String]) -> Result<Self> {
+        let height = lines.len();
+        let widths = HashSet::<usize>::from_iter(lines.iter().map(|line| line.len()));
+        if widths.len() != 1 {
+            Err(format!(
+                "expected all lines to be the same length, got {:?}",
+                widths
+            ))?;
         }
-        Ok(result)
+        let width = *widths.iter().next().unwrap();
+
+        let mut start = None;
+        let mut end = None;
+        let mut data = Vec::with_capacity(width * height);
+        for (y, line) in lines.iter().enumerate() {
+            for (x, c) in line.chars().enumerate() {
+                data.push(match c {
+                    '.' => Cell::Empty,
+                    '#' => Cell::Wall,
+                    'S' => {
+                        start = Some(Point {
+                            x: x as i64,
+                            y: y as i64,
+                        });
+                        Cell::Empty
+                    }
+                    'E' => {
+                        end = Some(Point {
+                            x: x as i64,
+                            y: y as i64,
+                        });
+                        Cell::Empty
+                    }
+                    _ => Err(format!("illegal character: {}", c))?,
+                });
+            }
+        }
+
+        match (start, end) {
+            (Some(_), Some(end)) => Ok(Self {
+                width,
+                height,
+                data,
+                goal: end,
+            }),
+            _ => Err("failed to find start and/or end position")?,
+        }
     }
 
-    fn shortest_path(&self, start: Point, goal: Point) -> Result<u64> {
+    fn count_shortcuts(&self) -> Result<Vec<u64>> {
         /*
         dijkstra
         vertices are position + direction
@@ -166,18 +203,17 @@ impl Grid {
                     y: y as i64,
                 };
                 let p_i = self.index(p)?;
-                if !self.data[p_i] {
+                if self.data[p_i] == Cell::Empty {
                     queue.push(p);
                     queue_contains[p_i] = true;
-                    if p == start {
-                        graph[p_i] = Some(PathElement::Start);
+                    if p == self.goal {
+                        graph[p_i] = Some(PathElement::Goal);
                     }
                 }
             }
         }
 
-        let mut goal_node = None;
-        while !queue.is_empty() && goal_node.is_none() {
+        while !queue.is_empty() {
             // find the next element
             // sort in decreasing distance
             let (next_i, next) = queue
@@ -242,24 +278,73 @@ impl Grid {
                             graph[neighbor_i] = Some(PathElement::Element {
                                 distance: proposed_distance_to_neighbor,
                             });
-
-                            if neighbor == goal {
-                                goal_node = Some(neighbor);
-                            }
                         }
                     }
                 }
             }
         }
 
-        if let Some(goal_node) = goal_node {
-            match &graph[self.index(goal_node)?] {
-                Some(PathElement::Element { distance }) => Ok(*distance),
-                _ => Err("thought we found the goal node, but no distance found for it")?,
+        /*
+        now we have a graph that should contain for every empty cell:
+        - the distance to the goal if we take no shortcuts
+        - the next point towards the goal
+
+        now we can find all possible shortcuts we could take and compare the distance if we take them
+        */
+
+        let mut results = Vec::new();
+        for y in 0..self.height {
+            for x in 0..self.width {
+                let before_shortcut = Point {
+                    x: x as i64,
+                    y: y as i64,
+                };
+                let before_shortcut_i = self.index(before_shortcut)?;
+                // find all the walls around this point
+                for d in [
+                    Direction::Left,
+                    Direction::Right,
+                    Direction::Up,
+                    Direction::Down,
+                ] {
+                    let shortcut_1 = before_shortcut + d.to_vector();
+                    // make sure to ignore out of bounds points
+                    if let Ok(shortcut_1_i) = self.index(shortcut_1) {
+                        if self.data[shortcut_1_i] == Cell::Wall {
+                            // now find all the empty spots next to that wall that aren't the original point
+                            for d in [
+                                Direction::Left,
+                                Direction::Right,
+                                Direction::Up,
+                                Direction::Down,
+                            ] {
+                                let shortcut_2 = shortcut_1 + d.to_vector();
+                                if let Ok(shortcut_2_i) = self.index(shortcut_2) {
+                                    if shortcut_2 != before_shortcut
+                                        && self.data[shortcut_2_i] == Cell::Empty
+                                    {
+                                        // we're now sure that before_shortcut -> shortcut_1 -> shortcut_2 is a shortcut
+                                        let distance_without_shortcut = self
+                                            .effective_distance(&graph[before_shortcut_i])
+                                            .unwrap_or(0);
+                                        let distance_with_shortcut = self
+                                            .effective_distance(&graph[shortcut_2_i])
+                                            .unwrap_or(0) 
+                                            // plus the distance it took to actually take the shortcut
+                                            + 2;
+                                        // if we have saved time doing this we remember how much time we saved
+                                        if distance_with_shortcut < distance_without_shortcut {
+                                            results.push(distance_without_shortcut  - distance_with_shortcut);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
-        } else {
-            Err("exited, but didn't find a path to the goal")?
         }
+        Ok(results)
     }
 
     fn index(&self, p: Point) -> Result<usize> {
@@ -273,14 +358,14 @@ impl Grid {
     fn effective_distance(&self, x: &Option<PathElement>) -> Option<u64> {
         // effective distance is 0 for Some(Start), and infinity for None
         x.as_ref().map(|x| match x {
-            &PathElement::Element { distance } => distance,
-            PathElement::Start => 0,
+            &PathElement::Element { distance  } => distance,
+            PathElement::Goal => 0,
         })
     }
 }
 
 #[allow(dead_code)]
-fn do_it(path: &str, width: usize, height: usize, count: usize) -> Result<u64> {
+fn do_it(path: &str, at_least_time_saved: u64) -> Result<usize> {
     let file_contents = BufReader::new(File::open(
         Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("..")
@@ -303,15 +388,10 @@ fn do_it(path: &str, width: usize, height: usize, count: usize) -> Result<u64> {
         .filter_map(|line| if line.is_empty() { None } else { Some(line) })
         .collect::<Vec<_>>();
 
-    let grid = Grid::new(width, height, &file_contents[0..count])?;
+    let grid = Grid::new(&file_contents)?;
 
-    Ok(grid.shortest_path(
-        Point { x: 0, y: 0 },
-        Point {
-            x: (width as i64) - 1,
-            y: (height as i64) - 1,
-        },
-    )?)
+   let time_saved =  grid.count_shortcuts()?;
+   Ok(time_saved.into_iter().filter(|x| *x >= at_least_time_saved).count())
 }
 
 #[cfg(test)]
@@ -320,11 +400,11 @@ mod tests {
 
     #[test]
     pub fn test_sample() {
-        assert_eq!(do_it("day18-sample.txt", 7, 7, 12).unwrap(), 22);
+        assert_eq!(do_it("day20-sample.txt", 20).unwrap(), 5);
     }
 
     #[test]
     pub fn test_real() {
-        assert_eq!(do_it("day18.txt", 71, 71, 1024).unwrap(), 278);
+        assert_eq!(do_it("day20.txt", 100).unwrap(), 1375);
     }
 }
