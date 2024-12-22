@@ -153,9 +153,9 @@ impl Map {
             } else {
                 sides
                     .entry(Direction::Left)
-                    .or_insert(HashMap::new())
+                    .or_default()
                     .entry(point.x as u64)
-                    .or_insert(Vec::new())
+                    .or_default()
                     .push(point.y as u64);
                 None
             },
@@ -172,9 +172,9 @@ impl Map {
             } else {
                 sides
                     .entry(Direction::Right)
-                    .or_insert(HashMap::new())
+                    .or_default()
                     .entry((point.x + 1) as u64)
-                    .or_insert(Vec::new())
+                    .or_default()
                     .push(point.y as u64);
                 None
             },
@@ -191,9 +191,9 @@ impl Map {
             } else {
                 sides
                     .entry(Direction::Up)
-                    .or_insert(HashMap::new())
+                    .or_default()
                     .entry(point.y as u64)
-                    .or_insert(Vec::new())
+                    .or_default()
                     .push(point.x as u64);
                 None
             },
@@ -210,9 +210,9 @@ impl Map {
             } else {
                 sides
                     .entry(Direction::Down)
-                    .or_insert(HashMap::new())
+                    .or_default()
                     .entry((point.y + 1) as u64)
-                    .or_insert(Vec::new())
+                    .or_default()
                     .push(point.x as u64);
                 None
             },
@@ -229,9 +229,9 @@ impl Map {
                 } else {
                     sides
                         .entry(*direction)
-                        .or_insert(HashMap::new())
+                        .or_default()
                         .entry(*fence_index)
-                        .or_insert(Vec::new())
+                        .or_default()
                         .push(*fence_location);
                 }
             }

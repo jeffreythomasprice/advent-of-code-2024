@@ -83,26 +83,22 @@ fn is_possible<'a>(
 
     if pattern.is_empty() {
         true
-    } else {
-        if unsolvable.contains(pattern) {
-            false
-        } else {
-            if let Some(possible_choices) = choices.get(&pattern[0]) {
-                let result = possible_choices
-                    .iter()
-                    .find(|towel| {
-                        pattern.starts_with(&towel.0)
-                            && is_possible(&pattern[towel.0.len()..], choices, unsolvable)
-                    })
-                    .is_some();
-                if !result {
-                    unsolvable.insert(pattern);
-                }
-                result
-            } else {
-                false
-            }
+    } else if unsolvable.contains(pattern) {
+        false
+    } else if let Some(possible_choices) = choices.get(&pattern[0]) {
+        let result = possible_choices
+            .iter()
+            .find(|towel| {
+                pattern.starts_with(&towel.0)
+                    && is_possible(&pattern[towel.0.len()..], choices, unsolvable)
+            })
+            .is_some();
+        if !result {
+            unsolvable.insert(pattern);
         }
+        result
+    } else {
+        false
     }
 }
 
@@ -136,7 +132,7 @@ fn do_it(path: &str) -> Result<usize> {
         .collect::<Vec<_>>();
 
     // remove duplicate towels
-    let choices = HashSet::<Towel>::from_iter(choices.into_iter())
+    let choices = HashSet::<Towel>::from_iter(choices)
         .into_iter()
         .collect::<Vec<_>>();
 

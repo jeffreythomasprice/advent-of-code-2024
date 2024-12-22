@@ -407,7 +407,7 @@ fn do_it(path: &str) -> Result<u64> {
     .collect::<Result<Vec<_>>>()?;
 
     let state = State::new(file_contents)?;
-    Ok(state.find_shortest_path()?)
+    state.find_shortest_path()
 }
 
 #[cfg(test)]

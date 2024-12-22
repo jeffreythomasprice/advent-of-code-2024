@@ -85,15 +85,15 @@ fn do_it(path: &str) -> Result<i64> {
         let prize_string = &file_contents[i + 2];
 
         let (_, [button_a_x, button_a_y]) = button_a_regex
-            .captures(&button_a_string)
+            .captures(button_a_string)
             .ok_or_else(|| format!("expected button A string: {}", button_a_string))?
             .extract();
         let (_, [button_b_x, button_b_y]) = button_b_regex
-            .captures(&button_b_string)
+            .captures(button_b_string)
             .ok_or_else(|| format!("expected button B string: {}", button_b_string))?
             .extract();
         let (_, [prize_x, prize_y]) = prize_regex
-            .captures(&prize_string)
+            .captures(prize_string)
             .ok_or_else(|| format!("expected prize string: {}", prize_string))?
             .extract();
 

@@ -206,7 +206,7 @@ impl State {
                     print!(" ");
                 }
             }
-            println!("");
+            println!();
         }
     }
 
@@ -246,7 +246,7 @@ fn do_it(path: &str, width: usize, height: usize) -> Result<u64> {
         robots: file_contents
             .iter()
             .map(|line| {
-                Ok(r.captures(&line)
+                Ok(r.captures(line)
                     .ok_or(format!("failed to match line: {}", line))?)
             })
             .collect::<Result<Vec<_>>>()?

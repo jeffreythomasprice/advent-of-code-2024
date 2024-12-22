@@ -395,7 +395,7 @@ impl State {
                     distance: _,
                     previous,
                 }) => {
-                    queue.extend_from_slice(&previous);
+                    queue.extend_from_slice(previous);
                 }
                 // we're at the start, nothing to add
                 Some(PathElement::Start) => (),
@@ -472,7 +472,7 @@ fn do_it(path: &str) -> Result<u64> {
     .collect::<Result<Vec<_>>>()?;
 
     let state = State::new(file_contents)?;
-    Ok(state.count_all_tiles_on_shortest_path()?)
+    state.count_all_tiles_on_shortest_path()
 }
 
 #[cfg(test)]

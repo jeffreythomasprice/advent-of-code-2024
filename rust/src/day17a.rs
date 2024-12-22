@@ -119,7 +119,7 @@ impl VM {
                 // bxc
                 4 => {
                     _ = self.read();
-                    self.b = self.b ^ self.c;
+                    self.b ^= self.c;
                     Ok(())
                 }
                 // out
@@ -167,7 +167,7 @@ impl VM {
     fn read_combo_data(&mut self) -> Result<Option<u64>> {
         match self.read_literal_data() {
             Some(data) => match data {
-                0 | 1 | 2 | 3 => Ok(Some(data as u64)),
+                0..=3 => Ok(Some(data as u64)),
                 4 => Ok(Some(self.a)),
                 5 => Ok(Some(self.b)),
                 6 => Ok(Some(self.c)),
@@ -221,19 +221,19 @@ fn do_it(path: &str) -> Result<String> {
     }
 
     let (_, [register_a]) = Regex::new("^Register A: ([0-9]+)$")?
-        .captures(&file_contents[0])
+        .captures(file_contents[0])
         .ok_or("regex failed")?
         .extract();
     let (_, [register_b]) = Regex::new("^Register B: ([0-9]+)$")?
-        .captures(&file_contents[1])
+        .captures(file_contents[1])
         .ok_or("regex failed")?
         .extract();
     let (_, [register_c]) = Regex::new("^Register C: ([0-9]+)$")?
-        .captures(&file_contents[2])
+        .captures(file_contents[2])
         .ok_or("regex failed")?
         .extract();
     let (_, [program]) = Regex::new("^Program: ([0-9,]+)$")?
-        .captures(&file_contents[3])
+        .captures(file_contents[3])
         .ok_or("regex failed")?
         .extract();
 

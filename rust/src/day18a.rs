@@ -305,13 +305,13 @@ fn do_it(path: &str, width: usize, height: usize, count: usize) -> Result<u64> {
 
     let grid = Grid::new(width, height, &file_contents[0..count])?;
 
-    Ok(grid.shortest_path(
+    grid.shortest_path(
         Point { x: 0, y: 0 },
         Point {
             x: (width as i64) - 1,
             y: (height as i64) - 1,
         },
-    )?)
+    )
 }
 
 #[cfg(test)]

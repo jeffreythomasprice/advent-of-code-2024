@@ -82,28 +82,24 @@ fn count_possible<'a>(
 
     if pattern.is_empty() {
         1
+    } else if let Some(result) = answers.get(pattern) {
+        *result
+    } else if let Some(possible_choices) = choices.get(&pattern[0]) {
+        let result = possible_choices
+            .iter()
+            .map(|towel| {
+                if pattern.starts_with(&towel.0) {
+                    count_possible(&pattern[towel.0.len()..], choices, answers)
+                } else {
+                    0
+                }
+            })
+            .sum();
+        answers.insert(pattern, result);
+        result
     } else {
-        if let Some(result) = answers.get(pattern) {
-            *result
-        } else {
-            if let Some(possible_choices) = choices.get(&pattern[0]) {
-                let result = possible_choices
-                    .iter()
-                    .map(|towel| {
-                        if pattern.starts_with(&towel.0) {
-                            count_possible(&pattern[towel.0.len()..], choices, answers)
-                        } else {
-                            0
-                        }
-                    })
-                    .sum();
-                answers.insert(&pattern, result);
-                result
-            } else {
-                answers.insert(&pattern, 0);
-                0
-            }
-        }
+        answers.insert(pattern, 0);
+        0
     }
 }
 
@@ -137,7 +133,7 @@ fn do_it(path: &str) -> Result<usize> {
         .collect::<Vec<_>>();
 
     // remove duplicate towels
-    let choices = HashSet::<Towel>::from_iter(choices.into_iter())
+    let choices = HashSet::<Towel>::from_iter(choices)
         .into_iter()
         .collect::<Vec<_>>();
 
