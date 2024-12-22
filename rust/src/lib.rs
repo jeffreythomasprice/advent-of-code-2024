@@ -39,3 +39,4 @@ mod day19b;
 mod day20a;
 mod day20b;
 mod day21a;
+mod day22a;
