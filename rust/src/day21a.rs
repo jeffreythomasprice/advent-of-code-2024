@@ -174,16 +174,9 @@ impl NumericKeypad {
         let target = self.get_coordinates_of_symbol(symbol)?;
 
         if self.current.y == 3 {
-            if target.y < self.current.y {
-                for _ in target.y..self.current.y {
-                    self.update(Direction::Up)?;
-                    f(Direction::Up)?;
-                }
-            } else if target.y > self.current.y {
-                for _ in self.current.y..target.y {
-                    self.update(Direction::Down)?;
-                    f(Direction::Down)?;
-                }
+            for _ in target.y..self.current.y {
+                self.update(Direction::Up)?;
+                f(Direction::Up)?;
             }
         }
 
@@ -270,92 +263,91 @@ impl DirectionalKeypad {
         }
     }
 
-    fn update_to<F>(&mut self, symbol: DirectionalSymbol, mut f: F) -> Result<()>
+    fn update_to<F>(&mut self, symbol: DirectionalSymbol, wiggle_rule: bool, mut f: F) -> Result<()>
     where
         F: FnMut(Direction) -> Result<()>,
     {
         let target = self.get_coordinates_of_symbol(symbol);
 
-        // if self.current != target {
-        //     let results = match (self.current, target) {
-        //         (Point { x: 1, y: 0 }, Point { x: 2, y: 0 }) => [Direction::Right].as_slice(),
-        //         (Point { x: 1, y: 0 }, Point { x: 0, y: 1 }) => [Direction::Down, Direction::Left].as_slice(),
-        //         (Point { x: 1, y: 0 }, Point { x: 1, y: 1 }) => [Direction::Down].as_slice(),
-        //         (Point { x: 1, y: 0 }, Point { x: 2, y: 1 }) => [Direction::Down, Direction::Right].as_slice(),
+        if self.current != target {
+            let results = match (self.current, target) {
+                (Point { x: 1, y: 0 }, Point { x: 2, y: 0 }) => [Direction::Right].as_slice(),
+                (Point { x: 1, y: 0 }, Point { x: 0, y: 1 }) => [Direction::Down, Direction::Left].as_slice(),
+                (Point { x: 1, y: 0 }, Point { x: 1, y: 1 }) => [Direction::Down].as_slice(),
+                (Point { x: 1, y: 0 }, Point { x: 2, y: 1 }) => [Direction::Down, Direction::Right].as_slice(),
 
-        //         (Point { x: 2, y: 0 }, Point { x: 1, y: 0 }) => [Direction::Left].as_slice(),
-        //         (Point { x: 2, y: 0 }, Point { x: 0, y: 1 }) => [Direction::Left, Direction::Down, Direction::Left].as_slice(),
-        //         (Point { x: 2, y: 0 }, Point { x: 1, y: 1 }) => [Direction::Left, Direction::Down].as_slice(),
-        //         (Point { x: 2, y: 0 }, Point { x: 2, y: 1 }) => [Direction::Down].as_slice(),
+                (Point { x: 2, y: 0 }, Point { x: 1, y: 0 }) => [Direction::Left].as_slice(),
+                (Point { x: 2, y: 0 }, Point { x: 0, y: 1 }) => {
+                    if wiggle_rule {
+                        [Direction::Left, Direction::Down, Direction::Left].as_slice()
+                    } else {
+                        [Direction::Down, Direction::Left, Direction::Left].as_slice()
+                    }
+                }
+                (Point { x: 2, y: 0 }, Point { x: 1, y: 1 }) => [Direction::Left, Direction::Down].as_slice(),
+                (Point { x: 2, y: 0 }, Point { x: 2, y: 1 }) => [Direction::Down].as_slice(),
 
-        //         (Point { x: 0, y: 1 }, Point { x: 1, y: 0 }) => [Direction::Right, Direction::Up].as_slice(),
-        //         (Point { x: 0, y: 1 }, Point { x: 2, y: 0 }) => [Direction::Right, Direction::Right, Direction::Up].as_slice(),
-        //         (Point { x: 0, y: 1 }, Point { x: 1, y: 1 }) => [Direction::Right].as_slice(),
-        //         (Point { x: 0, y: 1 }, Point { x: 2, y: 1 }) => [Direction::Right, Direction::Right].as_slice(),
+                (Point { x: 0, y: 1 }, Point { x: 1, y: 0 }) => [Direction::Right, Direction::Up].as_slice(),
+                (Point { x: 0, y: 1 }, Point { x: 2, y: 0 }) => [Direction::Right, Direction::Right, Direction::Up].as_slice(),
+                (Point { x: 0, y: 1 }, Point { x: 1, y: 1 }) => [Direction::Right].as_slice(),
+                (Point { x: 0, y: 1 }, Point { x: 2, y: 1 }) => [Direction::Right, Direction::Right].as_slice(),
 
-        //         (Point { x: 1, y: 1 }, Point { x: 1, y: 0 }) => [Direction::Up].as_slice(),
-        //         (Point { x: 1, y: 1 }, Point { x: 2, y: 0 }) => [Direction::Right, Direction::Up].as_slice(),
-        //         (Point { x: 1, y: 1 }, Point { x: 0, y: 1 }) => [Direction::Left].as_slice(),
-        //         (Point { x: 1, y: 1 }, Point { x: 2, y: 1 }) => [Direction::Right].as_slice(),
+                (Point { x: 1, y: 1 }, Point { x: 1, y: 0 }) => [Direction::Up].as_slice(),
+                (Point { x: 1, y: 1 }, Point { x: 2, y: 0 }) => [Direction::Right, Direction::Up].as_slice(),
+                (Point { x: 1, y: 1 }, Point { x: 0, y: 1 }) => [Direction::Left].as_slice(),
+                (Point { x: 1, y: 1 }, Point { x: 2, y: 1 }) => [Direction::Right].as_slice(),
 
-        //         (Point { x: 2, y: 1 }, Point { x: 1, y: 0 }) => [Direction::Left, Direction::Up].as_slice(),
-        //         (Point { x: 2, y: 1 }, Point { x: 2, y: 0 }) => [Direction::Up].as_slice(),
-        //         (Point { x: 2, y: 1 }, Point { x: 0, y: 1 }) => [Direction::Left, Direction::Left].as_slice(),
-        //         (Point { x: 2, y: 1 }, Point { x: 1, y: 1 }) => [Direction::Left].as_slice(),
+                (Point { x: 2, y: 1 }, Point { x: 1, y: 0 }) => [Direction::Left, Direction::Up].as_slice(),
+                (Point { x: 2, y: 1 }, Point { x: 2, y: 0 }) => [Direction::Up].as_slice(),
+                (Point { x: 2, y: 1 }, Point { x: 0, y: 1 }) => [Direction::Left, Direction::Left].as_slice(),
+                (Point { x: 2, y: 1 }, Point { x: 1, y: 1 }) => [Direction::Left].as_slice(),
 
-        //         _ => Err(format!("impossible move: {:?} -> {:?}", self.current, target))?,
-        //     };
+                _ => Err(format!("impossible move: {:?} -> {:?}", self.current, target))?,
+            };
 
-        //     for d in results {
-        //         self.update(*d)?;
-        //         f(*d)?;
+            for d in results {
+                self.update(*d)?;
+                f(*d)?;
+            }
+        }
+
+        // if self.current.y == 0 {
+        //     for _ in self.current.y..target.y {
+        //         self.update(Direction::Down)?;
+        //         f(Direction::Down)?;
         //     }
         // }
 
-        if self.current.y == 0 {
-            if target.y < self.current.y {
-                for _ in target.y..self.current.y {
-                    self.update(Direction::Up)?;
-                    f(Direction::Up)?;
-                }
-            } else if target.y > self.current.y {
-                for _ in self.current.y..target.y {
-                    self.update(Direction::Down)?;
-                    f(Direction::Down)?;
-                }
-            }
-        }
+        // if target.x < self.current.x {
+        //     for _ in target.x..self.current.x {
+        //         self.update(Direction::Left)?;
+        //         f(Direction::Left)?;
+        //     }
+        // } else if target.x > self.current.x {
+        //     for _ in self.current.x..target.x {
+        //         self.update(Direction::Right)?;
+        //         f(Direction::Right)?;
+        //     }
+        // }
 
-        if target.x < self.current.x {
-            for _ in target.x..self.current.x {
-                self.update(Direction::Left)?;
-                f(Direction::Left)?;
-            }
-        } else if target.x > self.current.x {
-            for _ in self.current.x..target.x {
-                self.update(Direction::Right)?;
-                f(Direction::Right)?;
-            }
-        }
-
-        if target.y < self.current.y {
-            for _ in target.y..self.current.y {
-                self.update(Direction::Up)?;
-                f(Direction::Up)?;
-            }
-        } else if target.y > self.current.y {
-            for _ in self.current.y..target.y {
-                self.update(Direction::Down)?;
-                f(Direction::Down)?;
-            }
-        }
+        // if target.y < self.current.y {
+        //     for _ in target.y..self.current.y {
+        //         self.update(Direction::Up)?;
+        //         f(Direction::Up)?;
+        //     }
+        // } else if target.y > self.current.y {
+        //     for _ in self.current.y..target.y {
+        //         self.update(Direction::Down)?;
+        //         f(Direction::Down)?;
+        //     }
+        // }
 
         Ok(())
     }
 }
 
 fn solve(sequence: &str) -> Result<u64> {
-    println!("TODO sequence: {}", sequence);
+    // println!("TODO sequence: {}", sequence);
 
     let mut keypad_1 = DirectionalKeypad::new();
     let mut keypad_2 = DirectionalKeypad::new();
@@ -370,70 +362,107 @@ fn solve(sequence: &str) -> Result<u64> {
             'A' => NumericSymbol::Accept,
             _ => Err(format!("illegal character: {}", c))?,
         };
-        println!("TODO trying to type numberic symbol: {:?}", symbol);
+        // println!("TODO trying to type numberic symbol: {:?}", symbol);
         keypad_4.update_to(symbol, |d| {
-            println!("TODO     updating {:?}", d);
+            // println!("TODO     updating {:?}", d);
             keypad_3_directions.push(DirectionalSymbol::Direction(d));
             Ok(())
         })?;
-        println!("TODO     updating {:?}", DirectionalSymbol::Accept);
+        // println!("TODO     updating {:?}", DirectionalSymbol::Accept);
         keypad_3_directions.push(DirectionalSymbol::Accept);
     }
-    println!("");
+    // println!("");
 
     // now repeat that but for the sequence of steps you have to put into keypad 2 to get keypad 3 to type those directions
     let mut keypad_2_directions = Vec::new();
-    for symbol in keypad_3_directions {
-        println!("TODO trying to type {:?}", symbol);
-        keypad_3.update_to(symbol, |d| {
-            println!("TODO     updating {:?}", d);
+    for symbol in keypad_3_directions.iter() {
+        // println!("TODO trying to type {:?}", symbol);
+        keypad_3.update_to(*symbol, false, |d| {
+            // println!("TODO     updating {:?}", d);
             keypad_2_directions.push(DirectionalSymbol::Direction(d));
             Ok(())
         })?;
-        println!("TODO     updating {:?}", DirectionalSymbol::Accept);
+        // println!("TODO     updating {:?}", DirectionalSymbol::Accept);
         keypad_2_directions.push(DirectionalSymbol::Accept);
     }
-    println!("");
+    // println!("");
 
     // and again for the sequence for keypad 1 to get keypad 2 to do that
     let mut keypad_1_directions = Vec::new();
-    for symbol in keypad_2_directions {
-        println!("TODO trying to type {:?}", symbol);
-        keypad_2.update_to(symbol, |d| {
-            println!("TODO     updating {:?}", d);
+    for symbol in keypad_2_directions.iter() {
+        // println!("TODO trying to type {:?}", symbol);
+        keypad_2.update_to(*symbol, true, |d| {
+            // println!("TODO     updating {:?}", d);
             keypad_1_directions.push(DirectionalSymbol::Direction(d));
             Ok(())
         })?;
-        println!("TODO     updating {:?}", DirectionalSymbol::Accept);
+        // println!("TODO     updating {:?}", DirectionalSymbol::Accept);
         keypad_1_directions.push(DirectionalSymbol::Accept);
     }
-    println!("TODO keypad_1_directions.len(): {:?}", keypad_1_directions.len());
-    println!("");
+    // println!("TODO keypad_1_directions.len(): {:?}", keypad_1_directions.len());
+    // println!("");
 
-    let mut keypad_1 = DirectionalKeypad::new();
-    let mut keypad_2 = DirectionalKeypad::new();
-    let mut keypad_3 = DirectionalKeypad::new();
-    let mut keypad_4 = NumericKeypad::new();
-    for d in keypad_1_directions.iter() {
-        match d {
-            DirectionalSymbol::Accept => {
-                match keypad_2.get()? {
-                    DirectionalSymbol::Accept => {
-                        match keypad_3.get()? {
-                            DirectionalSymbol::Accept => {
-                                let value = keypad_4.get()?;
-                                println!("TODO what did we type? {:?}", value);
-                            }
-                            DirectionalSymbol::Direction(direction) => keypad_4.update(direction)?,
-                        };
-                    }
-                    DirectionalSymbol::Direction(direction) => keypad_3.update(direction)?,
-                };
-            }
-            DirectionalSymbol::Direction(direction) => keypad_2.update(*direction)?,
+    // TODO remove this
+    print!("{}: ", sequence);
+    for symbol in keypad_1_directions.iter() {
+        let c = match symbol {
+            DirectionalSymbol::Accept => 'A',
+            DirectionalSymbol::Direction(Direction::Left) => '<',
+            DirectionalSymbol::Direction(Direction::Right) => '>',
+            DirectionalSymbol::Direction(Direction::Up) => '^',
+            DirectionalSymbol::Direction(Direction::Down) => 'v',
         };
+        print!("{}", c);
     }
     println!("");
+    // for symbol in keypad_2_directions.iter() {
+    //     let c = match symbol {
+    //         DirectionalSymbol::Accept => 'A',
+    //         DirectionalSymbol::Direction(Direction::Left) => '<',
+    //         DirectionalSymbol::Direction(Direction::Right) => '>',
+    //         DirectionalSymbol::Direction(Direction::Up) => '^',
+    //         DirectionalSymbol::Direction(Direction::Down) => 'v',
+    //     };
+    //     print!("{}", c);
+    // }
+    // println!("");
+    // for symbol in keypad_3_directions.iter() {
+    //     let c = match symbol {
+    //         DirectionalSymbol::Accept => 'A',
+    //         DirectionalSymbol::Direction(Direction::Left) => '<',
+    //         DirectionalSymbol::Direction(Direction::Right) => '>',
+    //         DirectionalSymbol::Direction(Direction::Up) => '^',
+    //         DirectionalSymbol::Direction(Direction::Down) => 'v',
+    //     };
+    //     print!("{}", c);
+    // }
+    // println!("");
+
+    // TODO remove me
+    // let mut keypad_1 = DirectionalKeypad::new();
+    // let mut keypad_2 = DirectionalKeypad::new();
+    // let mut keypad_3 = DirectionalKeypad::new();
+    // let mut keypad_4 = NumericKeypad::new();
+    // for d in keypad_1_directions.iter() {
+    //     match d {
+    //         DirectionalSymbol::Accept => {
+    //             match keypad_2.get()? {
+    //                 DirectionalSymbol::Accept => {
+    //                     match keypad_3.get()? {
+    //                         DirectionalSymbol::Accept => {
+    //                             let value = keypad_4.get()?;
+    //                             println!("TODO what did we type? {:?}", value);
+    //                         }
+    //                         DirectionalSymbol::Direction(direction) => keypad_4.update(direction)?,
+    //                     };
+    //                 }
+    //                 DirectionalSymbol::Direction(direction) => keypad_3.update(direction)?,
+    //             };
+    //         }
+    //         DirectionalSymbol::Direction(direction) => keypad_2.update(*direction)?,
+    //     };
+    // }
+    // println!("");
 
     Ok(keypad_1_directions.len() as u64)
 }
@@ -464,7 +493,7 @@ fn do_it(path: &str) -> Result<u64> {
     for line in file_contents.iter() {
         let (_, [number_part]) = r.captures(&line).ok_or(format!("regex failed: {}", line))?.extract();
         let number: u64 = number_part.parse()?;
-        println!("TODO number part = {}", number);
+        // println!("TODO number part = {}", number);
         let sequence = solve(line)?;
         result += sequence * number;
     }
