@@ -44,3 +44,4 @@ mod day22b;
 mod day23a;
 mod day23b;
 mod day24a;
+mod day24b;
