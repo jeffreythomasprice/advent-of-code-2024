@@ -77,6 +77,23 @@ impl AddAssign for Point {
     }
 }
 
+impl Sub for Point {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        Self::Output {
+            x: self.x - rhs.x,
+            y: self.y - rhs.y,
+        }
+    }
+}
+
+impl SubAssign for Point {
+    fn sub_assign(&mut self, rhs: Self) {
+        *self = *self - rhs;
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum Direction {
     Left,
@@ -124,8 +141,8 @@ impl NumericKeypad {
         }
     }
 
-    fn get(&self) -> Result<NumericSymbol> {
-        Ok(match self.current {
+    fn get_at(p: Point) -> Result<NumericSymbol> {
+        Ok(match p {
             Point { x: 0, y: 0 } => NumericSymbol::Digit('7'),
             Point { x: 1, y: 0 } => NumericSymbol::Digit('8'),
             Point { x: 2, y: 0 } => NumericSymbol::Digit('9'),
@@ -137,11 +154,15 @@ impl NumericKeypad {
             Point { x: 2, y: 2 } => NumericSymbol::Digit('3'),
             Point { x: 1, y: 3 } => NumericSymbol::Digit('0'),
             Point { x: 2, y: 3 } => NumericSymbol::Accept,
-            _ => Err(format!("illegal position: {:?}", self.current))?,
+            _ => Err(format!("illegal position: {:?}", p))?,
         })
     }
 
-    fn get_coordinates_of_symbol(&self, symbol: NumericSymbol) -> Result<Point> {
+    fn get_at_current(&self) -> Result<NumericSymbol> {
+        Self::get_at(self.current)
+    }
+
+    fn get_coordinates_of_symbol(symbol: NumericSymbol) -> Result<Point> {
         Ok(match symbol {
             NumericSymbol::Accept => Point { x: 2, y: 3 },
             NumericSymbol::Digit('0') => Point { x: 1, y: 3 },
@@ -171,7 +192,7 @@ impl NumericKeypad {
     where
         F: FnMut(Direction) -> Result<()>,
     {
-        let target = self.get_coordinates_of_symbol(symbol)?;
+        let target = Self::get_coordinates_of_symbol(symbol)?;
 
         if self.current.y == 3 {
             for _ in target.y..self.current.y {
@@ -206,6 +227,61 @@ impl NumericKeypad {
 
         Ok(())
     }
+
+    fn all_possible_paths_between(start: Point, end: Point) -> Result<Vec<Vec<Direction>>> {
+        if Self::is_valid_point(start) && Self::is_valid_point(end) {
+            if start == end {
+                return Ok(vec![]);
+            }
+
+            let delta = end - start;
+            println!("TODO start={:?}, end={:?}, delta={:?}", start, end, delta);
+
+            let mut results = Vec::new();
+
+            if let Some((delta, direction)) = if delta.x < 0 {
+                Some((Point { x: -1, y: 0 }, Direction::Left))
+            } else if delta.x > 0 {
+                Some((Point { x: 1, y: 0 }, Direction::Right))
+            } else {
+                None
+            } {
+                let new_start = start + delta;
+                if new_start == end {
+                    results.push(vec![direction]);
+                } else if Self::is_valid_point(new_start) {
+                    for path in Self::all_possible_paths_between(new_start, end)? {
+                        results.push([vec![direction], path].concat());
+                    }
+                }
+            }
+
+            if let Some((delta, direction)) = if delta.y < 0 {
+                Some((Point { x: 0, y: -1 }, Direction::Up))
+            } else if delta.y > 0 {
+                Some((Point { x: 0, y: 1 }, Direction::Down))
+            } else {
+                None
+            } {
+                let new_start = start + delta;
+                if new_start == end {
+                    results.push(vec![direction]);
+                } else if Self::is_valid_point(new_start) {
+                    for path in Self::all_possible_paths_between(new_start, end)? {
+                        results.push([vec![direction], path].concat());
+                    }
+                }
+            }
+
+            Ok(results)
+        } else {
+            Err(format!("at least one point is out of bounds: {:?}, {:?}", start, end))?
+        }
+    }
+
+    fn is_valid_point(p: Point) -> bool {
+        p.x >= 0 && p.x <= 2 && p.y >= 0 && p.y <= 3 && p != (Point { x: 0, y: 3 })
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -232,18 +308,22 @@ impl DirectionalKeypad {
         }
     }
 
-    fn get(&self) -> Result<DirectionalSymbol> {
-        Ok(match self.current {
+    fn get_at(p: Point) -> Result<DirectionalSymbol> {
+        Ok(match p {
             Point { x: 1, y: 0 } => DirectionalSymbol::Direction(Direction::Up),
             Point { x: 2, y: 0 } => DirectionalSymbol::Accept,
             Point { x: 0, y: 1 } => DirectionalSymbol::Direction(Direction::Left),
             Point { x: 1, y: 1 } => DirectionalSymbol::Direction(Direction::Down),
             Point { x: 2, y: 1 } => DirectionalSymbol::Direction(Direction::Right),
-            _ => Err(format!("illegal position: {:?}", self.current))?,
+            _ => Err(format!("illegal position: {:?}", p))?,
         })
     }
 
-    fn get_coordinates_of_symbol(&self, symbol: DirectionalSymbol) -> Point {
+    fn get_at_current(&self) -> Result<DirectionalSymbol> {
+        Self::get_at(self.current)
+    }
+
+    fn get_coordinates_of_symbol(symbol: DirectionalSymbol) -> Point {
         match symbol {
             DirectionalSymbol::Accept => Point { x: 2, y: 0 },
             DirectionalSymbol::Direction(Direction::Left) => Point { x: 0, y: 1 },
@@ -267,7 +347,7 @@ impl DirectionalKeypad {
     where
         F: FnMut(Direction) -> Result<()>,
     {
-        let target = self.get_coordinates_of_symbol(symbol);
+        let target = Self::get_coordinates_of_symbol(symbol);
 
         if self.current != target {
             let results = match (self.current, target) {
@@ -357,12 +437,13 @@ fn solve(sequence: &str) -> Result<u64> {
     // find the set of steps to execute on keypad 3 to get the sequence into keypad 4
     let mut keypad_3_directions = Vec::new();
     for c in sequence.chars() {
+        let start = keypad_4.current;
         let symbol = match c {
             '0'..='9' => NumericSymbol::Digit(c),
             'A' => NumericSymbol::Accept,
             _ => Err(format!("illegal character: {}", c))?,
         };
-        // println!("TODO trying to type numberic symbol: {:?}", symbol);
+        println!("TODO trying to type numberic symbol: {:?}", symbol);
         keypad_4.update_to(symbol, |d| {
             // println!("TODO     updating {:?}", d);
             keypad_3_directions.push(DirectionalSymbol::Direction(d));
@@ -370,6 +451,20 @@ fn solve(sequence: &str) -> Result<u64> {
         })?;
         // println!("TODO     updating {:?}", DirectionalSymbol::Accept);
         keypad_3_directions.push(DirectionalSymbol::Accept);
+
+        let end = keypad_4.current;
+        let all_possible = NumericKeypad::all_possible_paths_between(start, end)?;
+        println!(
+            "TODO {} possible paths between {:?}={:?} and {:?}={:?}",
+            all_possible.len(),
+            start,
+            NumericKeypad::get_at(start)?,
+            end,
+            NumericKeypad::get_at(end)?,
+        );
+        for path in all_possible {
+            println!("TODO possible path = {:?}", path);
+        }
     }
     // println!("");
 
