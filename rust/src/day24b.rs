@@ -233,10 +233,10 @@ impl Gate {
         }
     }
 
-    fn human_readable_string(&self) -> String {
+    fn human_readable_string(&self, with_names: bool) -> String {
         let left = match self.input1.as_ref() {
             Input::Input(name) => name,
-            Input::Gate(gate) => &format!("({})", gate.human_readable_string()),
+            Input::Gate(gate) => &format!("({})", gate.human_readable_string(with_names)),
         };
         let op = match self.operation {
             Operation::And => "AND",
@@ -245,9 +245,13 @@ impl Gate {
         };
         let right = match self.input2.as_ref() {
             Input::Input(name) => name,
-            Input::Gate(gate) => &format!("({})", gate.human_readable_string()),
+            Input::Gate(gate) => &format!("({})", gate.human_readable_string(with_names)),
         };
-        format!("{} {} {}", left, op, right)
+        if with_names {
+            format!("{}({} {} {})", self.name, left, op, right)
+        } else {
+            format!("{} {} {}", left, op, right)
+        }
     }
 
     fn diff(a: &Self, b: &Self) -> Option<(Input, Input)> {
@@ -255,6 +259,33 @@ impl Gate {
         let diff1 = Input::diff(a.input1.as_ref(), b.input1.as_ref());
         let diff2 = Input::diff(a.input2.as_ref(), b.input2.as_ref());
         diff1.or(diff2)
+    }
+
+    fn get_all_names(&self, results: &mut Vec<String>) {
+        results.push(self.name.clone());
+        if let Input::Gate(gate) = self.input1.as_ref() {
+            gate.get_all_names(results);
+        }
+        if let Input::Gate(gate) = self.input2.as_ref() {
+            gate.get_all_names(results);
+        }
+    }
+
+    fn fix_names(&mut self, gates: &HashMap<String, Gate>) {
+        if let Input::Gate(gate) = self.input1.as_mut() {
+            gate.fix_names(gates);
+        }
+        if let Input::Gate(gate) = self.input2.as_mut() {
+            gate.fix_names(gates);
+        }
+        if let Some(real) = gates
+            .values()
+            .find(|gate| gate.human_readable_string(false) == self.human_readable_string(false))
+        {
+            self.name = real.name.clone();
+        } else {
+            println!("TODO failed to find name");
+        }
     }
 }
 
@@ -330,25 +361,42 @@ where
         .map(|name| Gate::new(&wires, &gates, name))
         .collect::<Result<Vec<_>>>()?;
     gates.sort_by(|a, b| a.name.cmp(&b.name));
+    let gates_map = HashMap::from_iter(gates.iter().map(|gate| (gate.name.clone(), gate.clone())));
+    // let mut all_wrong_names = HashMap::new();
     for gate in gates.iter().filter(|x| z_regex.is_match(&x.name)) {
         let bit = gate.name[1..].parse()?;
         let (expected, _) = Gate::new_adder(bit)?;
         // TODO should be doing a tree diff?
-        if expected.human_readable_string() != gate.human_readable_string() {
-            println!("TODO difference at {}", gate.name);
-            println!("TODO actual {}", gate.human_readable_string());
-            println!("TODO expected {}", expected.human_readable_string());
-            if let Some((actual, expected)) = Gate::diff(gate, &expected) {
-                println!("TODO diff, actual = {:?}", actual);
-                println!("TODO diff, should have been = {:?}", expected);
+        if expected.human_readable_string(false) != gate.human_readable_string(false) {
+            let mut expected = expected;
+            expected.fix_names(&gates_map);
 
-                /*
-                TODO find the gate that matches the expected side of the diff
-                */
-            }
-            println!();
+            println!("TODO difference at {}", gate.name);
+            println!("TODO actual {}", gate.human_readable_string(true));
+            println!("TODO expected {}", expected.human_readable_string(true));
+            // if let Some((actual, expected)) = Gate::diff(gate, &expected) {
+            //     println!("TODO diff, actual = {:?}", actual);
+            //     println!("TODO diff, should have been = {:?}", expected);
+
+            //     /*
+            //     TODO find the gate that matches the expected side of the diff
+            //     */
+            // }
+            // println!();
+
+            // let mut names = Vec::new();
+            // gate.get_all_names(&mut names);
+            // println!("TODO {} is wrong, depends on {:?}", gate.name, names);
+            // for name in names {
+            //     all_wrong_names.entry(name).and_modify(|e| *e += 1).or_insert(1);
+            // }
         }
     }
+    // let mut all_wrong_names = all_wrong_names.iter().collect::<Vec<_>>();
+    // all_wrong_names.sort_by(|(_, a), (_, b)| a.cmp(b));
+    // for (name, count) in all_wrong_names.iter() {
+    //     println!("TODO name {} shows up {} times", name, count);
+    // }
 
     todo!()
 }
@@ -356,12 +404,6 @@ where
 #[cfg(test)]
 mod tests {
     use super::do_it;
-
-    #[test]
-    pub fn test_sample() {
-        // TODO delete sample, not relevant?
-        assert_eq!(do_it("day24b-sample.txt", |x, y| x & y).unwrap(), "z00,z01,z02,z05");
-    }
 
     #[test]
     pub fn test_real() {
