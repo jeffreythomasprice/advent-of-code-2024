@@ -360,7 +360,7 @@ impl Grid {
             }
         }
 
-        Ok(results.values().map(|x| *x).collect::<Vec<_>>())
+        Ok(results.values().copied().collect::<Vec<_>>())
     }
 
     fn index(&self, p: Point) -> Result<usize> {

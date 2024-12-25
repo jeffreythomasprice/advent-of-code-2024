@@ -125,9 +125,9 @@ fn do_it(path: &str) -> Result<u64> {
             // });
 
             {
-                let last_sequence = last_sequence.iter().map(|x| *x).collect::<Vec<_>>();
+                let last_sequence = last_sequence.iter().copied().collect::<Vec<_>>();
                 best.entry(last_sequence)
-                    .or_insert(HashMap::new())
+                    .or_default()
                     .entry(number)
                     .and_modify(|existing| *existing = (*existing).max(current_ones))
                     .or_insert(current_ones);

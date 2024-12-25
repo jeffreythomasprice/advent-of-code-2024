@@ -1,6 +1,4 @@
 use std::{
-    cmp::Ordering,
-    collections::{HashMap, HashSet},
     env,
     fmt::Debug,
     fs::File,
@@ -429,7 +427,7 @@ impl DirectionalKeypad {
 fn solve(sequence: &str) -> Result<u64> {
     // println!("TODO sequence: {}", sequence);
 
-    let mut keypad_1 = DirectionalKeypad::new();
+    let keypad_1 = DirectionalKeypad::new();
     let mut keypad_2 = DirectionalKeypad::new();
     let mut keypad_3 = DirectionalKeypad::new();
     let mut keypad_4 = NumericKeypad::new();
@@ -509,7 +507,7 @@ fn solve(sequence: &str) -> Result<u64> {
         };
         print!("{}", c);
     }
-    println!("");
+    println!();
     // for symbol in keypad_2_directions.iter() {
     //     let c = match symbol {
     //         DirectionalSymbol::Accept => 'A',
@@ -586,7 +584,7 @@ fn do_it(path: &str) -> Result<u64> {
     let r = Regex::new("^([0-9]+)A$")?;
     let mut result = 0;
     for line in file_contents.iter() {
-        let (_, [number_part]) = r.captures(&line).ok_or(format!("regex failed: {}", line))?.extract();
+        let (_, [number_part]) = r.captures(line).ok_or(format!("regex failed: {}", line))?.extract();
         let number: u64 = number_part.parse()?;
         // println!("TODO number part = {}", number);
         let sequence = solve(line)?;

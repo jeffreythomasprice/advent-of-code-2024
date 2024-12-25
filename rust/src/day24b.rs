@@ -1,9 +1,11 @@
 use std::{
-    collections::HashMap,
+    cmp::Ordering,
+    collections::{HashMap, HashSet},
     env,
     fmt::Debug,
     fs::File,
     io::{BufRead, BufReader},
+    mem::swap,
     num::ParseIntError,
     path::Path,
     str::Utf8Error,
@@ -52,11 +54,208 @@ impl From<Utf8Error> for Error {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Operation {
     And,
     Or,
     Xor,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Input {
+    Input(String),
+    Gate(Gate),
+}
+
+impl Input {
+    fn new(wires: &HashSet<String>, gates: &HashMap<String, (String, Operation, String)>, name: &str) -> Result<Self> {
+        Ok(match (wires.get(name), gates.get(name)) {
+            (Some(wire), None) => Self::Input(wire.clone()),
+            (None, Some(_)) => Self::Gate(Gate::new(wires, gates, name)?),
+            (None, None) => Err(format!("no wire or gate named {:?}", name))?,
+            (Some(_), Some(_)) => Err(format!("both a wire and a gate are named {:?}", name))?,
+        })
+    }
+
+    fn diff(a: &Self, b: &Self) -> Option<(Input, Input)> {
+        match (a, b) {
+            (Input::Input(a), Input::Input(b)) => {
+                if a == b {
+                    None
+                } else {
+                    Some((Self::Input(a.clone()), Self::Input(b.clone())))
+                }
+            }
+            (Input::Input(a), Input::Gate(b)) => Some((Self::Input(a.clone()), Self::Gate(b.clone()))),
+            (Input::Gate(a), Input::Input(b)) => Some((Self::Gate(a.clone()), Self::Input(b.clone()))),
+            (Input::Gate(a), Input::Gate(b)) => Gate::diff(a, b),
+        }
+    }
+}
+
+impl PartialOrd for Input {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Input {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match (self, other) {
+            (Input::Input(a), Input::Input(b)) => a.cmp(b),
+            (Input::Input(_), Input::Gate(_)) => Ordering::Less,
+            (Input::Gate(_), Input::Input(_)) => Ordering::Greater,
+            (Input::Gate(a), Input::Gate(b)) => {
+                let result = a.input1.cmp(&b.input1);
+                if result != Ordering::Equal {
+                    result
+                } else {
+                    a.input2.cmp(&b.input2)
+                }
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Gate {
+    name: String,
+    input1: Box<Input>,
+    input2: Box<Input>,
+    operation: Operation,
+}
+
+impl Gate {
+    fn new(wires: &HashSet<String>, gates: &HashMap<String, (String, Operation, String)>, name: &str) -> Result<Self> {
+        let (input1, operation, input2) = gates.get(name).ok_or(format!("no such gate: {:?}", name))?;
+        let input1 = Input::new(wires, gates, input1)?;
+        let input2 = Input::new(wires, gates, input2)?;
+        Ok(Self {
+            name: name.to_string(),
+            input1: Box::new(input1),
+            input2: Box::new(input2),
+            operation: *operation,
+        }
+        .normalized())
+    }
+
+    fn new_adder(bit: u32) -> Result<(Self, Self)> {
+        if bit == 0 {
+            // A ^ B
+            let result = Self {
+                name: format!("z{:02}", bit),
+                input1: Box::new(Input::Input(format!("x{:02}", bit))),
+                input2: Box::new(Input::Input(format!("y{:02}", bit))),
+                operation: Operation::Xor,
+            }
+            .normalized();
+            // A & B
+            let carry = Self {
+                name: format!("c{:02}", bit),
+                input1: Box::new(Input::Input(format!("x{:02}", bit))),
+                input2: Box::new(Input::Input(format!("y{:02}", bit))),
+                operation: Operation::And,
+            }
+            .normalized();
+            Ok((result, carry))
+        } else {
+            let (_, previous_carry) = Self::new_adder(bit - 1)?;
+            // A ^ B ^ C
+            let result = Self {
+                name: format!("z{:02}", bit),
+                input1: Box::new(Input::Gate(
+                    Self {
+                        name: format!("partial{:02}", bit),
+                        input1: Box::new(Input::Input(format!("x{:02}", bit))),
+                        input2: Box::new(Input::Input(format!("y{:02}", bit))),
+                        operation: Operation::Xor,
+                    }
+                    .normalized(),
+                )),
+                input2: Box::new(Input::Gate(previous_carry.clone())),
+                operation: Operation::Xor,
+            }
+            .normalized();
+            /*
+            any variant of:
+            (A & B) | (B & C) | (A & C)
+            (A & B) | ((A ^ B) & C)
+            */
+            let carry = Self {
+                name: format!("c{:02}", bit),
+                input1: Box::new(Input::Gate(
+                    Self {
+                        name: format!("partial{:02}", bit),
+                        input1: Box::new(Input::Gate(
+                            Self {
+                                name: format!("partial{:02}", bit),
+                                input1: Box::new(Input::Input(format!("x{:02}", bit))),
+                                input2: Box::new(Input::Input(format!("y{:02}", bit))),
+                                operation: Operation::Xor,
+                            }
+                            .normalized(),
+                        )),
+                        input2: Box::new(Input::Gate(previous_carry)),
+                        operation: Operation::And,
+                    }
+                    .normalized(),
+                )),
+                input2: Box::new(Input::Gate(
+                    Self {
+                        name: format!("partial{:02}", bit),
+                        input1: Box::new(Input::Input(format!("x{:02}", bit))),
+                        input2: Box::new(Input::Input(format!("y{:02}", bit))),
+                        operation: Operation::And,
+                    }
+                    .normalized(),
+                )),
+                operation: Operation::Or,
+            }
+            .normalized();
+            Ok((result, carry))
+        }
+    }
+
+    fn normalized(self) -> Self {
+        let mut input1 = self.input1;
+        let mut input2 = self.input2;
+        // println!("TODO normalizing input1={:?}, input2={:?}", input1, input2);
+        if input1.as_ref().cmp(input2.as_ref()) == Ordering::Greater {
+            // println!("TODO they are backwards");
+            swap(&mut input1, &mut input2);
+        }
+        // println!("TODO after normalizing input1={:?}, input2={:?}", input1, input2);
+        Self {
+            name: self.name,
+            input1,
+            input2,
+            operation: self.operation,
+        }
+    }
+
+    fn human_readable_string(&self) -> String {
+        let left = match self.input1.as_ref() {
+            Input::Input(name) => name,
+            Input::Gate(gate) => &format!("({})", gate.human_readable_string()),
+        };
+        let op = match self.operation {
+            Operation::And => "AND",
+            Operation::Or => "OR",
+            Operation::Xor => "XOR",
+        };
+        let right = match self.input2.as_ref() {
+            Input::Input(name) => name,
+            Input::Gate(gate) => &format!("({})", gate.human_readable_string()),
+        };
+        format!("{} {} {}", left, op, right)
+    }
+
+    fn diff(a: &Self, b: &Self) -> Option<(Input, Input)> {
+        // TODO account for differences in operator?
+        let diff1 = Input::diff(a.input1.as_ref(), b.input1.as_ref());
+        let diff2 = Input::diff(a.input2.as_ref(), b.input2.as_ref());
+        diff1.or(diff2)
+    }
 }
 
 fn get_number_from_prefix(values: &HashMap<String, bool>, prefix: &str) -> u64 {
@@ -100,7 +299,7 @@ where
 
     // key = name, value = initial value
     let mut values = HashMap::new();
-    // key = output, value = (input1, input2)
+    // key = output, value = (input1, operation, input2)
     let mut gates = HashMap::new();
 
     let input_regex = Regex::new(r"^([a-zA-Z0-9]+): (0|1)$")?;
@@ -123,43 +322,31 @@ where
         }
     }
 
-    let x = get_number_from_prefix(&values, "x");
-    let y = get_number_from_prefix(&values, "y");
-    println!("TODO x = {}", x);
-    println!("TODO y = {}", y);
+    let wires = HashSet::from_iter(values.keys().cloned());
 
-    let mut to_remove = Vec::with_capacity(gates.len());
-    while !gates.is_empty() {
-        to_remove.clear();
+    let z_regex = Regex::new(r"^z[0-9]+$")?;
+    let mut gates = gates
+        .keys()
+        .map(|name| Gate::new(&wires, &gates, name))
+        .collect::<Result<Vec<_>>>()?;
+    gates.sort_by(|a, b| a.name.cmp(&b.name));
+    for gate in gates.iter().filter(|x| z_regex.is_match(&x.name)) {
+        let bit = gate.name[1..].parse()?;
+        let (expected, _) = Gate::new_adder(bit)?;
+        // TODO should be doing a tree diff?
+        if expected.human_readable_string() != gate.human_readable_string() {
+            println!("TODO difference at {}", gate.name);
+            println!("TODO actual {}", gate.human_readable_string());
+            println!("TODO expected {}", expected.human_readable_string());
+            if let Some((actual, expected)) = Gate::diff(gate, &expected) {
+                println!("TODO diff, actual = {:?}", actual);
+                println!("TODO diff, should have been = {:?}", expected);
 
-        for (name, (input1, op, input2)) in gates.iter() {
-            if let Some(result) = match (op, values.get(input1), values.get(input2)) {
-                (Operation::And, Some(input1), Some(input2)) => Some(input1 & input2),
-                (Operation::Or, Some(input1), Some(input2)) => Some(input1 | input2),
-                (Operation::Xor, Some(input1), Some(input2)) => Some(input1 ^ input2),
-                _ => None,
-            } {
-                values.insert(name.clone(), result);
-                to_remove.push(name.clone());
+                /*
+                TODO find the gate that matches the expected side of the diff
+                */
             }
-        }
-
-        for name in to_remove.iter() {
-            gates.remove(name);
-        }
-    }
-
-    let z = get_number_from_prefix(&values, "z");
-    let desired_z = z_func(x, y);
-
-    println!("TODO z = {:b}", z);
-    println!("TODO desired z = {:b}", desired_z);
-
-    for i in 0..u64::BITS {
-        let actual = z & (1 << i);
-        let desired = desired_z & (1 << i);
-        if actual != desired {
-            println!("TODO difference at bit {}", i);
+            println!();
         }
     }
 
@@ -172,6 +359,7 @@ mod tests {
 
     #[test]
     pub fn test_sample() {
+        // TODO delete sample, not relevant?
         assert_eq!(do_it("day24b-sample.txt", |x, y| x & y).unwrap(), "z00,z01,z02,z05");
     }
 

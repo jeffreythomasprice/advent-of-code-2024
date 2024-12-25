@@ -131,12 +131,10 @@ fn do_it(path: &str) -> Result<usize> {
                 let name1 = &index_to_name[i1];
                 let name2 = &index_to_name[i2];
                 let name3 = &index_to_name[i3];
-                if name1.starts_with('t') || name2.starts_with('t') || name3.starts_with('t') {
-                    if connections[i2].contains(&i3) {
-                        let mut sorted = [name1, name2, name3];
-                        sorted.sort();
-                        triplets.insert(sorted);
-                    }
+                if (name1.starts_with('t') || name2.starts_with('t') || name3.starts_with('t')) && connections[i2].contains(&i3) {
+                    let mut sorted = [name1, name2, name3];
+                    sorted.sort();
+                    triplets.insert(sorted);
                 }
             }
         }
